@@ -119,7 +119,7 @@ date_pattern = '^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[012])/(19|20)\d\d$'
 cpf_pattern = r"\d{3}\.\d{3}\.\d{3}-\d{2}"
 
 n_boxes = len(d['text'])
-
+##5555
 for i in range(n_boxes):
     if int(d['conf'][i]) > 60:
         if re.match(date_pattern, d['text'][i]):
