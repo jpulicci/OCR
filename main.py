@@ -101,31 +101,31 @@ img_orig = cv2.imread('c:\CNH.jpg',0)
 #img = cv2.threshold(img_orig,127,255,cv2.THRESH_BINARY)
 #img_blur = cv2.GaussianBlur(img_orig,(5,5),0)
 
-laplacian = cv2.Laplacian(img_orig,cv2.CV_8UC1)
+##laplacian = cv2.Laplacian(img_orig,cv2.CV_8UC1)
 # Otsu's thresholding after Gaussian filtering
-threshold = cv2.threshold(laplacian,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+##threshold = cv2.threshold(laplacian,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+
+rgb = cv2.cvtColor(img_orig, cv2.COLOR_BGR2RGB)
 
 #cv2.imshow('Transf', laplacian)
 #cv2.waitKey(0)
 
-cv2.imwrite('c:\CNHBin.jpg',threshold)
-imgRet = cv2.imread('c:\CNHBin.jpg',0)
 
-
-d = ocr.image_to_data(imgRet, output_type=Output.DICT)
+d = ocr.image_to_data(rgb, output_type=Output.DICT)
 keys = list(d.keys())
 
 date_pattern = '^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[012])/(19|20)\d\d$'
-cpf_pattern = r"\d{3}\.\d{3}\.\d{3}-\d{2}"
+cpf_pattern = '/.(\d{3}.){2}\d{3}-\d{2}$/gm'
 
 n_boxes = len(d['text'])
-##5555
+##
+Padrao=false
 for i in range(n_boxes):
-    if int(d['conf'][i]) > 60:
+    if int(d['conf'][i]) > 30:
         if re.match(date_pattern, d['text'][i]):
             print("DataOK")
             (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
-            img = cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            rgb = cv2.rectangle(rgb, (x, y), (x + w, y + h), (0, 255, 0), 2)
             x = d["left"][i]
             y = d["top"][i]
             w = d["width"][i]
@@ -137,21 +137,32 @@ for i in range(n_boxes):
             print("Confiança: {}".format(conf))
             print("Texto: {}".format(text))
             print("")
-        if re.findall(cpf_pattern, d['text'][i]):
+            Padrao = true
+        if re.match(cpf_pattern, d['text'][i]):
+            print("CPFOK")
+            (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
+            rgb = cv2.rectangle(rgb, (x, y), (x + w, y + h), (0, 255, 0), 2)
             text = d["text"][i]
             conf = int(d["conf"][i])
             print("Confiança: {}".format(conf))
             print("Texto: {}".format(text))
             print("")
+            Padrao = true
+        if Padrao==false:
+            campo=d["text"][i]
+            print("Campo:"+campo)
+            (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
+            rgb = cv2.rectangle(rgb, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        Padrao = false
 
 #show_images(img, 3, ["gray", "rnoise", "dilate", "erode", "thresh", "deskew", "opening", "canny"])
 cv2.waitKey(0)
 
-height, width = imgRet.shape[:2]
+height, width = rgb.shape[:2]
 cv2.namedWindow('Data', cv2.WINDOW_NORMAL)
 cv2.resizeWindow('Data', width, height)
-cv2.imshow('Data', imgRet)
-phrase = ocr.image_to_string(imgRet, lang='por')
+cv2.imshow('Data', rgb)
+phrase = ocr.image_to_string(rgb, lang='por')
 print("Resultado : ", phrase)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
