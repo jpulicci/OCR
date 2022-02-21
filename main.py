@@ -5,7 +5,8 @@ import re
 import matplotlib.pyplot as plt
 #from matplotlib import pyplot as plt
 from pytesseract import Output
-from PIL import Image
+from PIL import Image as PIL
+from google.cloud import vision
 
 
 # get grayscale image
@@ -83,10 +84,12 @@ def match_template(image, template):
 # pytesseract.pytesseract.tesseract_cmd = r'C:\Users\USER\AppData\Local\Tesseract-OCR\tesseract.exe'
 
 # tipando a leitura para os canais de ordem RGB
-imagem = Image.open('c:\CNH.jpg').convert('RGB')
+imagem = PIL.open('c:\CNH.jpg').convert('RGB')
 
-#
-img_orig = cv2.imread('c:\CNH.jpg',0)
+img_orig = cv2.imread('c:\CNH.jpg',cv2.IMREAD_REDUCED_GRAYSCALE_2)
+
+client_options = {'api_endpoint': 'vision.googleapis.com'}
+client = vision.ImageAnnotatorClient(client_options=client_options)
 
 # h, w, c = img.shape
 # boxes = ocr.image_to_boxes(img)
@@ -95,6 +98,9 @@ img_orig = cv2.imread('c:\CNH.jpg',0)
 #    img = cv2.rectangle(img, (int(b[1]), h - int(b[2])), (int(b[3]), h - int(b[4])), (0, 255, 0), 2)
 # cv2.imshow('img', img)
 # cv2.waitKey(0)
+
+# Remove noise by blurring with a Gaussian filter ( kernel size = 3 )
+#src = cv2.GaussianBlur(img_orig,(3, 3),0);
 
 #img_blur = cv2.medianBlur(img_orig,5).astype('uint8')
 #img = cv2.adaptiveThreshold(img_orig,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)
@@ -105,13 +111,54 @@ img_orig = cv2.imread('c:\CNH.jpg',0)
 # Otsu's thresholding after Gaussian filtering
 ##threshold = cv2.threshold(laplacian,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 
-rgb = cv2.cvtColor(img_orig, cv2.COLOR_BGR2RGB)
+#rgb = cv2.cvtColor(img_orig, cv2.COLOR_BGR2RGB)
+# Convert the image to grayscale
+#src_gray = cv2.cvtColor(img_orig, cv2.COLOR_BGR2GRAY);
+
+#img_reduz = cv2.GaussianBlur(src_gray,(3,3),0)
+
+# Output dtype = cv2.CV_8U
+#sobelx8u = cv2.Sobel(src_gray,cv2.CV_8U,2,2,ksize=5)
+
+# Output dtype = cv2.CV_64F. Then take its absolute and convert to cv2.CV_8U
+#sobelx64f = cv2.Sobel(img_reduz,cv2.CV_64F,2,2,ksize=5)
+#abs_sobel64f = np.absolute(sobelx64f)
+#sobel_8u = np.uint8(abs_sobel64f)
+
+#plt.subplot(1,3,1),plt.imshow(img_orig,cmap = 'gray')
+#plt.title('Original'), plt.xticks([]), plt.yticks([])
+#plt.subplot(1,3,2),plt.imshow(sobelx8u,cmap = 'gray')
+#plt.title('Sobel CV_8U'), plt.xticks([]), plt.yticks([])
+#plt.subplot(1,3,3),plt.imshow(sobel_8u,cmap = 'gray')
+#plt.title('Sobel abs(CV_64F)'), plt.xticks([]), plt.yticks([])
+#plt.show()
+
+G_x = cv2.Sobel(img_orig,cv2.CV_64F,0,1)
+G_y = cv2.Sobel(img_orig,cv2.CV_64F,1,0)
+#G = np.abs(G_x) + np.abs(G_y)
+G = np.sqrt(np.power(G_x,2)+np.power(G_y,2))
+height, width = G.shape[:2]
+cv2.namedWindow('Vini', cv2.WINDOW_NORMAL)
+cv2.resizeWindow('Vini', width, height)
+G=(G/np.max(G))*2
+cv2.imshow('Vini',G)
 
 #cv2.imshow('Transf', laplacian)
 #cv2.waitKey(0)
 
+#clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8,8))
+#res = clahe.apply(img_orig)
+#height, width = sobel_8u.shape[:2]
+#cv2.namedWindow('Res', cv2.WINDOW_NORMAL)
+#cv2.resizeWindow('Res', width, height)
+#cv2.imshow('Res', sobel_8u)
 
-d = ocr.image_to_data(rgb, output_type=Output.DICT)
+img_tratada = PIL.fromarray(G,mode="RGBA")
+imag = np.asarray(img_tratada)
+#img_tratada = cv2.imread(G)
+#cv2.imshow('Vini',img_tratada)
+
+d = ocr.image_to_data(imag, output_type=Output.DICT)
 keys = list(d.keys())
 
 date_pattern = '^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[012])/(19|20)\d\d$'
@@ -119,13 +166,13 @@ cpf_pattern = '/.(\d{3}.){2}\d{3}-\d{2}$/gm'
 
 n_boxes = len(d['text'])
 ##
-Padrao=false
+Padrao = False
 for i in range(n_boxes):
     if int(d['conf'][i]) > 30:
         if re.match(date_pattern, d['text'][i]):
             print("DataOK")
             (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
-            rgb = cv2.rectangle(rgb, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            imag = cv2.rectangle(imag, (x, y), (x + w, y + h), (0, 255, 0), 2)
             x = d["left"][i]
             y = d["top"][i]
             w = d["width"][i]
@@ -137,32 +184,32 @@ for i in range(n_boxes):
             print("Confiança: {}".format(conf))
             print("Texto: {}".format(text))
             print("")
-            Padrao = true
+            Padrao = True
         if re.match(cpf_pattern, d['text'][i]):
             print("CPFOK")
             (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
-            rgb = cv2.rectangle(rgb, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            imag = cv2.rectangle(imag, (x, y), (x + w, y + h), (0, 255, 0), 2)
             text = d["text"][i]
             conf = int(d["conf"][i])
             print("Confiança: {}".format(conf))
             print("Texto: {}".format(text))
             print("")
-            Padrao = true
-        if Padrao==false:
+            Padrao = True
+        if Padrao==False:
             campo=d["text"][i]
             print("Campo:"+campo)
             (x, y, w, h) = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
-            rgb = cv2.rectangle(rgb, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        Padrao = false
+            imag = cv2.rectangle(imag, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        Padrao = False
 
 #show_images(img, 3, ["gray", "rnoise", "dilate", "erode", "thresh", "deskew", "opening", "canny"])
 cv2.waitKey(0)
 
-height, width = rgb.shape[:2]
+height, width = imag.shape[:2]
 cv2.namedWindow('Data', cv2.WINDOW_NORMAL)
 cv2.resizeWindow('Data', width, height)
-cv2.imshow('Data', rgb)
-phrase = ocr.image_to_string(rgb, lang='por')
+cv2.imshow('Data', imag)
+phrase = ocr.image_to_string(imag, lang='por')
 print("Resultado : ", phrase)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
